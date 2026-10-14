@@ -13,10 +13,12 @@ import {
   gradeSession 
 } from './data/interviewSimulator';
 import { isApiKeyLoaded, gradeGeminiSession } from './data/gemini';
+import { saveRecordedSession, type RecordedSession } from './data/sessionStorage';
 
 function App() {
   const [user, setUser] = useState<{ name: string; email: string } | null>(null);
   const [screen, setScreen] = useState<'dashboard' | 'console' | 'feedback'>('dashboard');
+  const [dashboardTab, setDashboardTab] = useState<'cockpit' | 'history' | 'benchmark'>('cockpit');
   const [activeSession, setActiveSession] = useState<InterviewSession | null>(null);
   const [feedbackBreakdown, setFeedbackBreakdown] = useState<ScoreBreakdown | null>(null);
   const [isGrading, setIsGrading] = useState(false);
@@ -59,6 +61,25 @@ function App() {
   const handleInitiateSession = (company: string, role: string, roundType: string, customQuestions?: Question[], requirements?: string) => {
     const session = startSession(company, role, roundType, customQuestions, requirements);
     setActiveSession(session);
+
+    // Save initial session record to persistent storage
+    const recorded: RecordedSession = {
+      id: session.id,
+      company: session.company,
+      role: session.role,
+      roundType: session.roundType,
+      startTime: session.startTime,
+      durationMinutes: 0,
+      status: 'in-progress',
+      questions: session.questions,
+      answers: session.answers,
+      codes: session.codes || [],
+      languages: session.languages || [],
+      isLiveAi: isApiKeyLoaded(),
+      requirements
+    };
+    saveRecordedSession(recorded);
+
     setScreen('console');
   };
 
@@ -82,32 +103,83 @@ function App() {
     setIsGrading(true);
 
     try {
+      let finalBreakdown: ScoreBreakdown;
       if (isApiKeyLoaded() && transcriptMessages && transcriptMessages.length > 0) {
         // Grade and generate detailed review scores via Gemini
-        const breakdown = await gradeGeminiSession(
+        finalBreakdown = await gradeGeminiSession(
           activeSession.company,
           activeSession.role,
           activeSession.roundType,
           transcriptMessages
         );
-        setFeedbackBreakdown(breakdown);
       } else {
         // Grade locally
-        const breakdown = gradeSession(activeSession.id);
-        setFeedbackBreakdown(breakdown);
+        finalBreakdown = gradeSession(activeSession.id);
       }
+
+      setFeedbackBreakdown(finalBreakdown);
+
+      // Persist completed session record with detailed feedback and scores
+      const duration = activeSession.startTime 
+        ? Math.max(1, Math.round((Date.now() - activeSession.startTime) / 60000)) 
+        : 15;
+
+      const completedRecord: RecordedSession = {
+        id: activeSession.id,
+        company: activeSession.company,
+        role: activeSession.role,
+        roundType: activeSession.roundType,
+        startTime: activeSession.startTime,
+        completedAt: Date.now(),
+        durationMinutes: duration,
+        status: 'completed',
+        scoreBreakdown: finalBreakdown,
+        questions: activeSession.questions,
+        answers: answers,
+        codes: codes || [],
+        languages: languages || [],
+        isLiveAi: isApiKeyLoaded(),
+        requirements: (activeSession as any).requirements
+      };
+      saveRecordedSession(completedRecord);
+
       setScreen('feedback');
     } catch (err: any) {
       alert(`AI grading failed: ${err.message}. Falling back to offline grading.`);
       const breakdown = gradeSession(activeSession.id);
       setFeedbackBreakdown(breakdown);
+
+      const duration = activeSession.startTime 
+        ? Math.max(1, Math.round((Date.now() - activeSession.startTime) / 60000)) 
+        : 15;
+
+      const completedRecord: RecordedSession = {
+        id: activeSession.id,
+        company: activeSession.company,
+        role: activeSession.role,
+        roundType: activeSession.roundType,
+        startTime: activeSession.startTime,
+        completedAt: Date.now(),
+        durationMinutes: duration,
+        status: 'completed',
+        scoreBreakdown: breakdown,
+        questions: activeSession.questions,
+        answers: answers,
+        codes: codes || [],
+        languages: languages || [],
+        isLiveAi: isApiKeyLoaded(),
+        requirements: (activeSession as any).requirements
+      };
+      saveRecordedSession(completedRecord);
+
       setScreen('feedback');
     } finally {
       setIsGrading(false);
     }
   };
 
-  const handleRestart = () => {
+  const handleRestart = (tab: 'cockpit' | 'history' | 'benchmark' = 'cockpit') => {
+    setDashboardTab(tab);
     setScreen('dashboard');
     setActiveSession(null);
     setFeedbackBreakdown(null);
@@ -145,9 +217,55 @@ function App() {
     <>
       {/* Global Cyber Header */}
       <header className="app-header" id="app-global-header">
-        <div className="logo-container">
+        <div className="logo-container" style={{ cursor: 'pointer' }} onClick={() => { setDashboardTab('cockpit'); setScreen('dashboard'); }}>
           <div style={styles.logoBadge} className="cyber-font">AI</div>
           <span className="logo-logo">INTERVIEW SIMULATOR</span>
+        </div>
+
+        {/* Global Navigation Shortcuts */}
+        <div style={styles.headerNavLinks}>
+          <button
+            type="button"
+            id="global-nav-cockpit"
+            style={{
+              ...styles.headerTabBtn,
+              color: screen === 'dashboard' && dashboardTab === 'cockpit' ? 'var(--neon-cyan)' : 'var(--text-muted)',
+              borderColor: screen === 'dashboard' && dashboardTab === 'cockpit' ? 'rgba(129, 140, 248, 0.3)' : 'transparent',
+              backgroundColor: screen === 'dashboard' && dashboardTab === 'cockpit' ? 'rgba(129, 140, 248, 0.08)' : 'transparent',
+            }}
+            className="cyber-font"
+            onClick={() => { setDashboardTab('cockpit'); setScreen('dashboard'); }}
+          >
+            COCKPIT
+          </button>
+          <button
+            type="button"
+            id="global-nav-history"
+            style={{
+              ...styles.headerTabBtn,
+              color: screen === 'dashboard' && dashboardTab === 'history' ? 'var(--neon-blue)' : 'var(--text-muted)',
+              borderColor: screen === 'dashboard' && dashboardTab === 'history' ? 'rgba(99, 102, 241, 0.3)' : 'transparent',
+              backgroundColor: screen === 'dashboard' && dashboardTab === 'history' ? 'rgba(99, 102, 241, 0.08)' : 'transparent',
+            }}
+            className="cyber-font"
+            onClick={() => { setDashboardTab('history'); setScreen('dashboard'); }}
+          >
+            SESSIONS LOG
+          </button>
+          <button
+            type="button"
+            id="global-nav-benchmark"
+            style={{
+              ...styles.headerTabBtn,
+              color: screen === 'dashboard' && dashboardTab === 'benchmark' ? 'var(--neon-green)' : 'var(--text-muted)',
+              borderColor: screen === 'dashboard' && dashboardTab === 'benchmark' ? 'rgba(16, 185, 129, 0.3)' : 'transparent',
+              backgroundColor: screen === 'dashboard' && dashboardTab === 'benchmark' ? 'rgba(16, 185, 129, 0.08)' : 'transparent',
+            }}
+            className="cyber-font"
+            onClick={() => { setDashboardTab('benchmark'); setScreen('dashboard'); }}
+          >
+            MARKET CRITERIA
+          </button>
         </div>
 
         <div style={styles.headerStatusPanel}>
@@ -189,6 +307,8 @@ function App() {
           <Dashboard
             userName={user.name}
             onInitiateSession={handleInitiateSession}
+            initialTab={dashboardTab}
+            onTabChange={setDashboardTab}
           />
         )}
         {screen === 'console' && activeSession && (
@@ -226,6 +346,21 @@ const styles: Record<string, React.CSSProperties> = {
     color: 'var(--neon-cyan)',
     fontWeight: 'bold',
     fontSize: '12px',
+  },
+  headerNavLinks: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px',
+  },
+  headerTabBtn: {
+    background: 'none',
+    border: '1px solid transparent',
+    borderRadius: '6px',
+    padding: '6px 14px',
+    fontSize: '11px',
+    cursor: 'pointer',
+    letterSpacing: '0.08em',
+    transition: 'all 0.2s ease',
   },
   headerStatusPanel: {
     display: 'flex',

@@ -1,10 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { type Question } from '../data/interviewSimulator';
 import { getApiKey, setApiKey, isApiKeyLoaded, fetchLeetCodeQuestion, generateDynamicQuestions } from '../data/gemini';
+import { getRecordedSessions, calculateCandidateAggregates, type RecordedSession } from '../data/sessionStorage';
+import SessionHistoryView from './SessionHistoryView';
+import CompanyBenchmarkView from './CompanyBenchmarkView';
 
 interface DashboardProps {
   userName: string;
   onInitiateSession: (company: string, role: string, roundType: string, customQuestions?: Question[], requirements?: string) => void;
+  initialTab?: 'cockpit' | 'history' | 'benchmark';
+  onTabChange?: (tab: 'cockpit' | 'history' | 'benchmark') => void;
 }
 
 const COMPANIES = [
@@ -29,7 +34,10 @@ const ROUNDS = [
   { id: 'Computer Science Fundamentals', name: 'CS Fundamentals', icon: '💻', desc: 'Virtual memory, processes vs threads, TCP, and isolation levels' }
 ];
 
-export default function Dashboard({ userName, onInitiateSession }: DashboardProps) {
+export default function Dashboard({ userName, onInitiateSession, initialTab = 'cockpit', onTabChange }: DashboardProps) {
+  const [activeTab, setActiveTab] = useState<'cockpit' | 'history' | 'benchmark'>(initialTab);
+  const [sessions, setSessions] = useState<RecordedSession[]>(getRecordedSessions());
+
   const [selectedCompany, setSelectedCompany] = useState('Google');
   const [customCompany, setCustomCompany] = useState('');
   const [selectedRole, setSelectedRole] = useState('Software Development Engineer (SDE)');
@@ -49,8 +57,25 @@ export default function Dashboard({ userName, onInitiateSession }: DashboardProp
   const [isGeneratingQuestions, setIsGeneratingQuestions] = useState(false);
 
   useEffect(() => {
+    if (initialTab) {
+      setActiveTab(initialTab);
+    }
+  }, [initialTab]);
+
+  useEffect(() => {
     setIsApiActive(!!apiKeyVal);
   }, [apiKeyVal]);
+
+  const refreshSessions = () => {
+    setSessions(getRecordedSessions());
+  };
+
+  const handleTabSwitch = (tab: 'cockpit' | 'history' | 'benchmark') => {
+    setActiveTab(tab);
+    if (onTabChange) onTabChange(tab);
+  };
+
+  const aggregates = calculateCandidateAggregates(sessions);
 
   const handleSaveApiKey = () => {
     setApiKey(apiKeyVal);
@@ -138,7 +163,9 @@ export default function Dashboard({ userName, onInitiateSession }: DashboardProp
         <div style={styles.bannerLeft}>
           <p style={styles.bannerTag} className="cyber-font">Candidate Protocol Active</p>
           <h1 style={styles.bannerTitle} className="cyber-font">Welcome back, {userName}</h1>
-          <p style={styles.bannerDesc}>Configure interview parameters, connect to Google Gemini, or sync real LeetCode questions below.</p>
+          <p style={styles.bannerDesc}>
+            Configure mock sessions, review complete historical debriefs in your profile, and benchmark against top market criteria.
+          </p>
         </div>
         <div style={styles.statsGrid}>
           <div style={styles.statBox}>
@@ -148,16 +175,84 @@ export default function Dashboard({ userName, onInitiateSession }: DashboardProp
             </span>
           </div>
           <div style={styles.statBox}>
-            <span style={styles.statLabel} className="cyber-font">Round Limit</span>
-            <span style={{ ...styles.statValue, color: 'var(--neon-cyan)' }}>02 Qs</span>
+            <span style={styles.statLabel} className="cyber-font">Sessions Logged</span>
+            <span style={{ ...styles.statValue, color: 'var(--neon-cyan)' }}>
+              {aggregates.completedSessions}
+            </span>
+          </div>
+          <div style={styles.statBox}>
+            <span style={styles.statLabel} className="cyber-font">Avg Score</span>
+            <span style={{ ...styles.statValue, color: aggregates.averageOverall >= 80 ? 'var(--neon-green)' : 'var(--neon-cyan)' }}>
+              {aggregates.averageOverall}%
+            </span>
+          </div>
+          <div style={styles.statBox}>
+            <span style={styles.statLabel} className="cyber-font">Market Pass</span>
+            <span style={{ ...styles.statValue, color: 'var(--neon-pink)' }}>
+              {aggregates.passRate}%
+            </span>
           </div>
         </div>
       </div>
 
-      {/* Main Cockpit Configuration */}
-      <div className="grid-main">
-        {/* Company Card Selection */}
-        <div className="glass-panel" style={styles.panelSection}>
+      {/* Futuristic Navigation Tabs */}
+      <div className="glass-panel" style={styles.navTabBar} id="dashboard-main-nav-tabs">
+        <button
+          type="button"
+          id="dashboard-tab-cockpit"
+          style={{
+            ...styles.navTabBtn,
+            borderColor: activeTab === 'cockpit' ? 'var(--neon-cyan)' : 'transparent',
+            backgroundColor: activeTab === 'cockpit' ? 'rgba(129, 140, 248, 0.12)' : 'transparent',
+            color: activeTab === 'cockpit' ? '#fff' : 'var(--text-muted)'
+          }}
+          className="cyber-font"
+          onClick={() => handleTabSwitch('cockpit')}
+        >
+          <span>🚀 INTERVIEW COCKPIT</span>
+        </button>
+
+        <button
+          type="button"
+          id="dashboard-tab-history"
+          style={{
+            ...styles.navTabBtn,
+            borderColor: activeTab === 'history' ? 'var(--neon-blue)' : 'transparent',
+            backgroundColor: activeTab === 'history' ? 'rgba(99, 102, 241, 0.12)' : 'transparent',
+            color: activeTab === 'history' ? '#fff' : 'var(--text-muted)'
+          }}
+          className="cyber-font"
+          onClick={() => handleTabSwitch('history')}
+        >
+          <span>📋 SESSION HISTORY & PROFILE LOGS</span>
+          <span style={styles.navCountBadge}>{sessions.length}</span>
+        </button>
+
+        <button
+          type="button"
+          id="dashboard-tab-benchmark"
+          style={{
+            ...styles.navTabBtn,
+            borderColor: activeTab === 'benchmark' ? 'var(--neon-green)' : 'transparent',
+            backgroundColor: activeTab === 'benchmark' ? 'rgba(16, 185, 129, 0.12)' : 'transparent',
+            color: activeTab === 'benchmark' ? '#fff' : 'var(--text-muted)'
+          }}
+          className="cyber-font"
+          onClick={() => handleTabSwitch('benchmark')}
+        >
+          <span>🏢 MARKET BENCHMARK & COMPANY CRITERIA</span>
+          <span style={{ ...styles.navCountBadge, backgroundColor: 'rgba(16, 185, 129, 0.2)', color: 'var(--neon-green)' }}>
+            8 TOP GIANTS
+          </span>
+        </button>
+      </div>
+
+      {/* Tab 1: Interview Cockpit Configuration */}
+      {activeTab === 'cockpit' && (
+        <>
+          <div className="grid-main">
+            {/* Company Card Selection */}
+            <div className="glass-panel" style={styles.panelSection}>
           <h3 style={styles.sectionTitle} className="cyber-font">Select target entity</h3>
           <p style={styles.sectionSub}>Pick a tech giant to load their specific questions or type a custom profile.</p>
           
@@ -399,6 +494,35 @@ export default function Dashboard({ userName, onInitiateSession }: DashboardProp
           )}
         </button>
       </div>
+        </>
+      )}
+
+      {/* Tab 2: Profile Recorded Sessions & History */}
+      {activeTab === 'history' && (
+        <SessionHistoryView
+          sessions={sessions}
+          onRefresh={refreshSessions}
+          onInitiateSession={(company, role, roundType, customQuestions, reqs) => {
+            setSelectedCompany(company);
+            setSelectedRole(role);
+            setSelectedRound(roundType);
+            onInitiateSession(company, role, roundType, customQuestions, reqs);
+          }}
+        />
+      )}
+
+      {/* Tab 3: Market Benchmarking & Company Criteria Comparison */}
+      {activeTab === 'benchmark' && (
+        <CompanyBenchmarkView
+          stats={aggregates}
+          onInitiateSession={(company, role, roundType, customQuestions, reqs) => {
+            setSelectedCompany(company);
+            setSelectedRole(role);
+            setSelectedRound(roundType);
+            onInitiateSession(company, role, roundType, customQuestions, reqs);
+          }}
+        />
+      )}
     </div>
   );
 }
@@ -408,6 +532,36 @@ const styles: Record<string, React.CSSProperties> = {
     display: 'flex',
     flexDirection: 'column',
     gap: '30px',
+  },
+  navTabBar: {
+    display: 'flex',
+    gap: '12px',
+    padding: '8px 12px',
+    borderRadius: '12px',
+    flexWrap: 'wrap',
+    backgroundColor: 'rgba(10, 10, 18, 0.6)',
+    border: '1px solid rgba(255, 255, 255, 0.06)',
+  },
+  navTabBtn: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '10px',
+    padding: '12px 20px',
+    borderRadius: '8px',
+    border: '1px solid transparent',
+    background: 'none',
+    cursor: 'pointer',
+    fontSize: '12px',
+    letterSpacing: '0.08em',
+    transition: 'all 0.25s ease',
+  },
+  navCountBadge: {
+    fontSize: '10px',
+    padding: '2px 8px',
+    borderRadius: '12px',
+    backgroundColor: 'rgba(129, 140, 248, 0.2)',
+    color: 'var(--neon-cyan)',
+    fontFamily: 'var(--font-mono)',
   },
   banner: {
     display: 'flex',

@@ -6,7 +6,7 @@ interface FeedbackDashboardProps {
   role: string;
   roundType: string;
   breakdown: ScoreBreakdown;
-  onRestart: () => void;
+  onRestart: (tab?: 'cockpit' | 'history' | 'benchmark') => void;
 }
 
 export default function FeedbackDashboard({
@@ -62,14 +62,32 @@ export default function FeedbackDashboard({
           <h2 style={styles.title} className="cyber-font">Performance debrief: {company}</h2>
           <p style={styles.subtitle}>{role} — {roundType} Evaluation</p>
         </div>
-        <button
-          id="feedback-retry-btn"
-          type="button"
-          className="btn-cyber btn-cyber-cyan"
-          onClick={onRestart}
-        >
-          INITIATE NEW SESSION
-        </button>
+        <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+          <button
+            id="feedback-history-btn"
+            type="button"
+            className="btn-cyber btn-cyber-secondary"
+            onClick={() => onRestart('history')}
+          >
+            📋 VIEW IN SESSIONS LOG
+          </button>
+          <button
+            id="feedback-benchmark-btn"
+            type="button"
+            className="btn-cyber btn-cyber-blue"
+            onClick={() => onRestart('benchmark')}
+          >
+            🏢 COMPARE MARKET CRITERIA
+          </button>
+          <button
+            id="feedback-retry-btn"
+            type="button"
+            className="btn-cyber btn-cyber-cyan"
+            onClick={() => onRestart('cockpit')}
+          >
+            🚀 NEW MOCK SESSION
+          </button>
+        </div>
       </div>
 
       {/* Scoring Panels Grid */}
@@ -296,15 +314,33 @@ export default function FeedbackDashboard({
         </div>
       </div>
 
-      <div style={styles.actionsFooter}>
+      <div style={{ ...styles.actionsFooter, display: 'flex', gap: '12px', justifyContent: 'center', flexWrap: 'wrap' }}>
         <button
           id="feedback-back-btn"
           type="button"
           className="btn-cyber btn-cyber-secondary"
-          onClick={onRestart}
+          onClick={() => onRestart('cockpit')}
           style={styles.backBtn}
         >
-          RETURN TO DASHBOARD
+          RETURN TO COCKPIT
+        </button>
+        <button
+          id="feedback-footer-history-btn"
+          type="button"
+          className="btn-cyber btn-cyber-cyan"
+          onClick={() => onRestart('history')}
+          style={styles.backBtn}
+        >
+          VIEW IN SESSION HISTORY
+        </button>
+        <button
+          id="feedback-footer-benchmark-btn"
+          type="button"
+          className="btn-cyber btn-cyber-blue"
+          onClick={() => onRestart('benchmark')}
+          style={styles.backBtn}
+        >
+          COMPARE MARKET BENCHMARKS
         </button>
       </div>
     </div>
